@@ -59,6 +59,7 @@ The global entry has the ID percentage-compaction. The following is a profile pa
     auto: true
     # summarizationProvider: example-provider # Optional summarization route override.
     # summarizationModel: example-model
+    providerPolicies: []
     modelPolicies: []
     headroomTokens: 0 # Accepted for migration; ignored by this plugin.
 ```
@@ -76,6 +77,7 @@ For an isolated preset, place the configuration on its compaction child. Values 
 | `auto` | true | Enables automatic compaction listeners. |
 | `summarizationProvider` | Unset | Optional provider override for summarization. |
 | `summarizationModel` | Unset | Optional model override for summarization. |
+| `providerPolicies` | [] | Default pressure policy for all models on a provider. |
 | `modelPolicies` | [] | Partial overrides for exact provider/model routes. Both identifiers are required. |
 | `headroomTokens` | Ignored | Accepted for migration from the upstream configuration. |
 
@@ -96,7 +98,7 @@ modelPolicies:
     headroomTokens: 0 # Accepted for migration; ignored by this plugin.
 ```
 
-Use the provider identifier and model name registered in the target DSH installation. Fields omitted from a route override inherit the service configuration. `auto` is a service-wide option and cannot be overridden per route. The LLM adapter must supply `contextWindow` for pressure compaction.
+Use the provider identifier and model name registered in the target DSH installation. Pressure policy fields inherit from service defaults → provider policy → exact model policy. Set `retainTokens` or `retainRatio` to replace the inherited retention form. Summary and overflow handlers continue to use upstream service/model configuration. `auto` is a service-wide option and cannot be overridden per route. The LLM adapter must supply `contextWindow` for pressure compaction.
 
 ## Token-meter configuration
 
@@ -106,8 +108,9 @@ The global entry has the ID model-token-meter. A profile patch can select a toke
 - id: model-token-meter
   config:
     defaultTokenizer: deepseek_v4
-    providerTokenizers:
-      example-provider: o200k_base
+    providerPolicies:
+      - provider: example-provider
+        tokenizer: o200k_base
     modelPolicies:
       - provider: example-provider
         model: example-model
@@ -120,19 +123,19 @@ The global entry has the ID model-token-meter. A profile patch can select a toke
         tokenizer: o200k_base
 ```
 
-The identifiers in this example are placeholders. An exact provider/model policy takes precedence over a model-only policy. The matched policy's explicit tokenizer overrides `providerTokenizers[provider]`, which overrides `defaultTokenizer`. A matched policy that omits tokenizer inherits the provider default or the global default. With no request header, the global default applies.
+The identifiers in this example are placeholders. An exact provider/model policy takes precedence over a model-only policy. Each omitted policy field inherits from the provider policy, then from the global default. The matched model policy's explicit fields override the provider policy. With no request header, the global default applies.
 
 | Option | Default | Description |
 | --- | --- | --- |
 | `defaultTokenizer` | `deepseek_v4` | Registered tokenizer used when no model or provider tokenizer applies. |
-| `providerTokenizers` | {} | Provider identifier to default tokenizer mapping, applied to all models on that provider. |
+| `providerPolicies` | [] | Tokenizer and accounting defaults for all models on a provider. |
 | `modelPolicies` | [] | Route-specific tokenizer and accounting settings. |
 | `tokensPerMessage` | 3 | Per-message framing allowance. |
 | `toolsOverhead` | 4 | Allowance added when tool definitions are present. |
 | `replyPrimingTokens` | 3 | Request-level reply framing allowance. |
 | `includeReasoning` | false | Includes visible reasoning text in the estimated message surface. |
 
-The last four options belong to model policy entries. Token allowances must be nonnegative integers. For duplicate routes at the same specificity, the first matching entry is used. Unknown tokenizer names fail when text is counted.
+The last four options belong to provider and model policy entries. Token allowances must be nonnegative integers. For duplicate routes at the same specificity, the first matching entry is used. Unknown tokenizer names fail when text is counted.
 
 ### Builtin tokenizers
 
@@ -147,8 +150,9 @@ DeepSeek V4 is the global default. Select GPT token counting for all models on a
 - id: model-token-meter
   config:
     defaultTokenizer: deepseek_v4
-    providerTokenizers:
-      openai: o200k_base
+    providerPolicies:
+      - provider: openai
+        tokenizer: o200k_base
 ```
 
 Use the provider identifiers configured in your DSH profile; `openai` is an example.

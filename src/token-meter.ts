@@ -17,19 +17,30 @@ declare module "@deepseek-ai/dsh-session-projection" {
 	}
 }
 
+const policyFields = {
+	tokenizer: settings.string(),
+	tokensPerMessage: settings.number().min(0).step(1),
+	toolsOverhead: settings.number().min(0).step(1),
+	replyPrimingTokens: settings.number().min(0).step(1),
+	includeReasoning: settings.boolean(),
+};
+
 export const Config: settings<MeterConfigInput, MeterConfig> = settings.object({
 	defaultTokenizer: settings.string().default("deepseek_v4"),
-	providerTokenizers: settings.dict(settings.string()).default({}),
+	providerPolicies: settings
+		.array(
+			settings.object({
+				...policyFields,
+				provider: settings.string().required(),
+			}),
+		)
+		.default([]),
 	modelPolicies: settings
 		.array(
 			settings.object({
+				...policyFields,
 				provider: settings.string(),
 				model: settings.string().required(),
-				tokenizer: settings.string(),
-				tokensPerMessage: settings.number().min(0).step(1),
-				toolsOverhead: settings.number().min(0).step(1),
-				replyPrimingTokens: settings.number().min(0).step(1),
-				includeReasoning: settings.boolean(),
 			}),
 		)
 		.default([]),

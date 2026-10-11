@@ -157,9 +157,9 @@ test("DeepSeek V4 model policies reprice measurement and preserve the default ro
 test("DeepSeek V4 is the global default; provider defaults price every model on that provider", () => {
 	const defaults = Meter.Config({});
 	assert.equal(defaults.defaultTokenizer, "deepseek_v4");
-	assert.deepEqual(defaults.providerTokenizers, {});
+	assert.deepEqual(defaults.providerPolicies, []);
 	assert.equal(resolvePolicy(defaults, null).tokenizer, "deepseek_v4");
-	const cfg = Meter.Config({ providerTokenizers: { openai: "o200k_base" } });
+	const cfg = Meter.Config({ providerPolicies: [{ provider: "openai", tokenizer: "o200k_base" }] });
 	for (const [provider, model, tokenizer, tokens] of [
 		["openai", "new-model", "o200k_base", 13],
 		["openai", "other-model", "o200k_base", 13],
@@ -179,7 +179,10 @@ test("DeepSeek V4 is the global default; provider defaults price every model on 
 
 test("matched model policy overrides the provider tokenizer, or inherits it when omitted", () => {
 	const cfg = Meter.Config({
-		providerTokenizers: { openai: "o200k_base", another: "o200k_base" },
+		providerPolicies: [
+			{ provider: "openai", tokenizer: "o200k_base" },
+			{ provider: "another", tokenizer: "o200k_base" },
+		],
 		modelPolicies: [
 			{ model: "shared", tokenizer: "deepseek_v4" },
 			{

@@ -20,23 +20,28 @@ export type MeterEvent =
 			data: { turn: number; step: number };
 	  };
 
-export interface ModelPolicy {
-	provider?: string;
-	model: string;
+export interface TokenPolicy {
 	tokenizer?: string;
 	tokensPerMessage?: number;
 	toolsOverhead?: number;
 	replyPrimingTokens?: number;
 	includeReasoning?: boolean;
 }
+export interface ProviderPolicy extends TokenPolicy {
+	provider: string;
+}
+export interface ModelPolicy extends TokenPolicy {
+	provider?: string;
+	model: string;
+}
 export interface MeterConfigInput {
 	defaultTokenizer?: string;
-	providerTokenizers?: Record<string, string>;
+	providerPolicies?: ProviderPolicy[];
 	modelPolicies?: ModelPolicy[];
 }
 export interface MeterConfig {
 	defaultTokenizer: string;
-	providerTokenizers?: Record<string, string>;
+	providerPolicies?: ProviderPolicy[];
 	modelPolicies: ModelPolicy[];
 }
 export interface ResolvedPolicy {

@@ -4,6 +4,7 @@ import Schema from "@deepseek-ai/schemastery";
 import BasicCompactionEngine from "@deepseek-ai/dsh-compaction-basic";
 import type {
 	BasicCompactionConfig,
+	CompactionPolicyConfig,
 	ResolvedTargetPolicy,
 	ResolvedCompactSpec,
 	ResolvedRetention,
@@ -20,6 +21,7 @@ import type { Session } from "@deepseek-ai/dsh-session";
 import type { TokenMeasurement } from "@deepseek-ai/dsh-token-meter";
 
 export interface PercentageCompactionConfig extends BasicCompactionConfig {
+	providerPolicies?: (CompactionPolicyConfig & { provider: string })[];
 	thresholdRatio: number;
 	maxTokens: number;
 	modelPolicies: NonNullable<BasicCompactionConfig["modelPolicies"]>;
@@ -39,6 +41,15 @@ const fields = {
 	compactionRetries: Schema.natural(),
 	maxOverflowRetries: Schema.natural(),
 };
+
+function mergePolicy<T extends CompactionPolicyConfig>(base: CompactionPolicyConfig, override: T): T {
+	const merged = { ...base, ...Object.fromEntries(
+		Object.entries(override).filter(([, value]) => value !== undefined),
+	) } as T;
+	if (override.retainTokens !== undefined && override.retainRatio === undefined) delete merged.retainRatio;
+	if (override.retainRatio !== undefined && override.retainTokens === undefined) delete merged.retainTokens;
+	return merged;
+}
 
 /** Both budgets are percentages of the full context window. */
 export function resolveCompactSpec(
@@ -151,13 +162,16 @@ export class PercentageCompactionEngine extends BasicCompactionEngine {
 		"sessionProjections",
 	];
 	static override Config: Schema<
-		BasicCompactionConfig,
+		Partial<PercentageCompactionConfig>,
 		PercentageCompactionConfig
 	> = Schema.object({
 		...fields,
 		thresholdRatio: Schema.number().min(0).max(1).default(0.8),
 		maxTokens: Schema.natural().default(65536),
 		auto: Schema.boolean().default(true),
+		providerPolicies: Schema.array(
+			Schema.object({ ...fields, provider: Schema.string().required() }),
+		).default([]),
 		modelPolicies: Schema.array(
 			Schema.object({
 				...fields,
@@ -166,16 +180,19 @@ export class PercentageCompactionEngine extends BasicCompactionEngine {
 			}),
 		).default([]),
 	});
+	private readonly providerPolicies: NonNullable<PercentageCompactionConfig["providerPolicies"]>;
 	constructor(ctx: Context, config: PercentageCompactionConfig) {
+		const { providerPolicies = [], ...basic } = config;
 		super(ctx, {
-			...config,
+			...basic,
 			headroomTokens: 0,
-			modelPolicies: config.modelPolicies.map((p) => ({
-				...p,
-				headroomTokens: 0,
-				maxTokens: p.maxTokens ?? config.maxTokens,
-			})),
+			modelPolicies: config.modelPolicies.map((p) => {
+				const provider = providerPolicies.find((policy) => policy.provider === p.provider);
+				const merged = mergePolicy(provider ?? {}, p);
+				return { ...merged, headroomTokens: 0, maxTokens: merged.maxTokens ?? config.maxTokens };
+			}),
 		});
+		this.providerPolicies = structuredClone(providerPolicies);
 		ctx.sessionProjections.register(compactionEntry);
 	}
 	private entryState(session: Session) {
@@ -193,7 +210,7 @@ export class PercentageCompactionEngine extends BasicCompactionEngine {
 	}): ResolvedTargetPolicy {
 		const match = this.config.modelPolicies.find(
 			(p) => p.provider === target.provider && p.model === target.model,
-		);
+		) ?? this.providerPolicies.find((p) => p.provider === target.provider);
 		let retention: ResolvedRetention;
 		if (match?.retainTokens !== undefined)
 			retention = { retainTokens: match.retainTokens };
