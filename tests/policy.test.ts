@@ -109,7 +109,7 @@ test("percentage trigger ignores output/headroom and scales retention against fu
 	assert.throws(() => resolveCompactSpec(policy, 0));
 });
 
-test("only o200k_base tokenizer is builtin; exact provider mapping wins", () => {
+test("o200k_base counts ordinary text; exact provider mapping wins", () => {
 	assert.equal(countText("hello world", "o200k_base"), 2);
 	assert.equal(countText("你好世界", "o200k_base"), 2);
 	assert.equal(countText("<|endoftext|>", "o200k_base"), 7);
@@ -132,6 +132,26 @@ test("only o200k_base tokenizer is builtin; exact provider mapping wins", () => 
 	assert.equal(countText("hello", "custom-test"), 5);
 	unregister();
 	assert.throws(() => countText("hello", "custom-test"));
+});
+
+test("DeepSeek V4 model policies reprice measurement and preserve the default route", () => {
+	const cfg = Meter.Config({
+		modelPolicies: [
+			{ model: "deepseek-v4-pro", tokenizer: "deepseek_v4" },
+			{ model: "deepseek-v4-flash", tokenizer: "deepseek_v4" },
+		],
+	});
+	for (const model of ["deepseek-v4-pro", "deepseek-v4-flash"]) {
+		const state = [
+			event(0, "request/header", { header: header("deepseek", model) }),
+			user(1, "你好世界"),
+		].reduce(fold, initialState());
+		const measurement = measureState(state, cfg);
+		assert.equal(measurement.tokenizer, "deepseek_v4");
+		assert.equal(measurement.surfaceTokens, 5); // 2 text + 3 message
+		assert.equal(measurement.totalTokens, 8); // + 3 reply
+	}
+	assert.equal(resolvePolicy(cfg, header()).tokenizer, "o200k_base");
 });
 
 test("calibrate prompt plus cache traffic; never add hidden reasoning output blindly", () => {

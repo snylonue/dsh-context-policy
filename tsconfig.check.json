@@ -2,12 +2,14 @@
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
 		"rootDir": ".",
-		"noEmit": true
+		"noEmit": true,
+		"resolveJsonModule": true
 	},
 	"include": [
 		"src/**/*.ts",
 		"tests/**/*.ts",
 		"scripts/check.ts",
-		"scripts/audit.ts"
+		"scripts/audit.ts",
+		"scripts/prepare-o200k.ts"
 	]
 }

@@ -138,6 +138,30 @@ The identifiers in this example are placeholders. An exact provider/model policy
 
 The last four options belong to model policy entries. DSH validates these fields through the plugin configuration schema; token allowances must be nonnegative integers. For duplicate routes at the same specificity, the first matching entry is used. Unknown tokenizer names fail when text is counted.
 
+### Builtin tokenizers
+
+| Name | Vocabulary |
+| --- | --- |
+| `o200k_base` | Modern GPT vocabulary; the default. |
+| `deepseek_v4` | Official shared DeepSeek V4 Pro / Flash vocabulary and pre-tokenization rules. |
+
+Select `deepseek_v4` explicitly for the DeepSeek V4 routes in your profile:
+
+```yaml
+- id: model-token-meter
+  config:
+    defaultTokenizer: o200k_base
+    modelPolicies:
+      - model: deepseek-v4-pro
+        tokenizer: deepseek_v4
+      - model: deepseek-v4-flash
+        tokenizer: deepseek_v4
+```
+
+Use the model identifiers configured in your DSH provider; add `provider` to restrict a policy to one provider. For a profile using only DeepSeek V4, set `defaultTokenizer: deepseek_v4`. Model routes are selected through these policies.
+
+Both builtins use `@huggingface/tokenizers` with compressed local assets loaded on first use, so counting works offline. The [GPT asset provenance](./assets/o200k-base/README.md) and [DeepSeek asset provenance](./assets/deepseek-v4/README.md) record the pinned sources, checksums, licenses, and reference fixture generation. The GPT asset preserves the previous `o200k_base` counting behavior, including its Unicode whitespace rules. Both builtins count literal special-token-looking content as ordinary text and add no BOS/EOS tokens. Complete requests remain estimates because provider chat framing and tool serialization are accounted for separately.
+
 ### Custom tokenizers
 
 Register a synchronous counter before loading a meter that selects it:
@@ -151,7 +175,7 @@ export function registerModelTokenizer(encode: (text: string) => readonly number
 }
 ```
 
-Call this function with the model's tokenizer implementation, then select `custom-model` in `defaultTokenizer` or a policy's tokenizer field. The returned function unregisters the counter; dispose dependent meters before calling it. Counters must return nonnegative safe integers. Text counts use a bounded cache, and special-token-looking input is treated as ordinary text by the builtin `o200k_base` counter.
+Call this function with the model's tokenizer implementation, then select `custom-model` in `defaultTokenizer` or a policy's tokenizer field. The returned function unregisters the counter; dispose dependent meters before calling it. Counters must return nonnegative safe integers. Text counts use a bounded cache, and special-token-looking input is treated as ordinary text by both builtin counters.
 
 ## Accounting and accuracy
 

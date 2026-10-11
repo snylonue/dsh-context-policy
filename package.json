@@ -1,7 +1,7 @@
 {
 	"name": "@snylonue/dsh-context-policy",
 	"version": "0.1.0",
-	"description": "Percentage-only compaction and model-configurable GPT token counting for DSH",
+	"description": "Percentage-only compaction and model-configurable GPT and DeepSeek token counting for DSH",
 	"type": "module",
 	"license": "MIT",
 	"engines": {
@@ -34,6 +34,7 @@
 	"files": [
 		"dist",
 		"src",
+		"assets",
 		"cordis.patch.yml",
 		"README.md",
 		"LICENSE",
@@ -53,7 +54,7 @@
 		"lint": "biome lint ."
 	},
 	"dependencies": {
-		"js-tiktoken": "1.0.21"
+		"@huggingface/tokenizers": "0.2.0"
 	},
 	"peerDependencies": {
 		"@deepseek-ai/cordis": "~4.0.4",

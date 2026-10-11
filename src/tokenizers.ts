@@ -1,23 +1,16 @@
 import type { EpochHeader } from "@deepseek-ai/dsh-session";
 import type { MeterConfig, ResolvedPolicy } from "./types.js";
-import { Tiktoken } from "js-tiktoken/lite";
-import ranks from "js-tiktoken/ranks/o200k_base";
+import { createTokenizerCounter } from "./builtin-tokenizers.js";
 
-// Only the modern GPT vocabulary is loaded. Treat special-token-looking user
-// text as ordinary text, rather than rejecting or interpreting it as control.
-let o200kBase: Tiktoken | undefined;
+// Treat special-token-looking user text as ordinary text, rather than
+// rejecting or interpreting it as control.
 const caches = new Map<
 	(text: string) => number,
 	{ values: Map<string, number>; chars: number }
 >();
 const tokenizers = new Map<string, (text: string) => number>([
-	[
-		"o200k_base",
-		(text: string) => {
-			o200kBase ??= new Tiktoken(ranks);
-			return o200kBase.encode(text, [], []).length;
-		},
-	],
+	["deepseek_v4", createTokenizerCounter("deepseek-v4")],
+	["o200k_base", createTokenizerCounter("o200k-base")],
 ]);
 
 export function registerTokenizer(

@@ -1,0 +1,125 @@
+{
+	"source": "deepseek-ai/DeepSeek-V4-Pro",
+	"revision": "b5968e9190ef611bbf34a7229255be88a0e937c1",
+	"tokenizersVersion": "0.23.2",
+	"addedTokens": false,
+	"addSpecialTokens": false,
+	"cases": [
+		{
+			"text": "",
+			"tokens": 0
+		},
+		{
+			"text": "hello world",
+			"tokens": 2
+		},
+		{
+			"text": "你好世界",
+			"tokens": 2
+		},
+		{
+			"text": "给 dsh-context-policy 增加 deepseek 新模型的 tokenizer 支持",
+			"tokens": 18
+		},
+		{
+			"text": "DeepSeek V4 Pro / Flash",
+			"tokens": 8
+		},
+		{
+			"text": "12345678901234567890",
+			"tokens": 7
+		},
+		{
+			"text": "１２３４５６７８９",
+			"tokens": 8
+		},
+		{
+			"text": "١٢٣٤٥٦٧٨٩",
+			"tokens": 15
+		},
+		{
+			"text": "一二三こんにちはカタカナ世界",
+			"tokens": 12
+		},
+		{
+			"text": "café café Å Å",
+			"tokens": 9
+		},
+		{
+			"text": "🙂🚀👩🏽‍💻🏳️‍🌈",
+			"tokens": 16
+		},
+		{
+			"text": "\u0000\t\r\n\u0001",
+			"tokens": 5
+		},
+		{
+			"text": " \t\r\n  hello\n\n world  ",
+			"tokens": 8
+		},
+		{
+			"text": "a bc d e f",
+			"tokens": 14
+		},
+		{
+			"text": "𠀀𐐷𓂀",
+			"tokens": 10
+		},
+		{
+			"text": "Привет мир! Ελληνικά العربية हिन्दी 한국어",
+			"tokens": 13
+		},
+		{
+			"text": "const x = foo.bar(123456); // 中文注释\n",
+			"tokens": 15
+		},
+		{
+			"text": "{\"name\":\"spawn\",\"arguments\":{\"command\":\"ls\",\"args\":[\"-la\"]}}",
+			"tokens": 19
+		},
+		{
+			"text": "https://api.deepseek.com/v1/chat/completions?q=你好",
+			"tokens": 17
+		},
+		{
+			"text": "'hello .world !hello _name /tmp/file --flag=value",
+			"tokens": 15
+		},
+		{
+			"text": "<｜begin▁of▁sentence｜>",
+			"tokens": 12
+		},
+		{
+			"text": "<｜end▁of▁sentence｜>",
+			"tokens": 12
+		},
+		{
+			"text": "<｜User｜>你好<｜Assistant｜>",
+			"tokens": 11
+		},
+		{
+			"text": "<think>thought</think>",
+			"tokens": 7
+		},
+		{
+			"text": "<｜tool▁calls▁begin｜>{\"x\":1}<｜tool▁calls▁end｜>",
+			"tokens": 28
+		},
+		{
+			"text": "<|endoftext|>",
+			"tokens": 7
+		},
+		{
+			"text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"tokens": 125
+		},
+		{
+			"text": "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ",
+			"tokens": 9
+		},
+		{
+			"text": "世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n世界123abc\n",
+			"tokens": 800
+		}
+	]
+}
