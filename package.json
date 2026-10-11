@@ -1,6 +1,6 @@
 {
 	"name": "@snylonue/dsh-context-policy",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "Percentage-only compaction and model-configurable GPT and DeepSeek token counting for DSH",
 	"type": "module",
 	"license": "MIT",
