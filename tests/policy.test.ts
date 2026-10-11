@@ -470,10 +470,10 @@ test("actual Cordis registry replays nonempty logs, validates all UI views and u
 	}
 });
 
-test("exact 90% boundary triggers, independent of request output limits; pruner can avert compaction", async () => {
+test("default 80% boundary triggers, independent of request output limits; pruner can avert compaction", async () => {
 	const ctx = new Context();
 	await ctx.plugin(Registry).await();
-	let tokens = 244799,
+	let tokens = 217599,
 		calls = 0;
 	const s = session([
 		event(0, "request/header", { header: header() }),
@@ -508,17 +508,16 @@ test("exact 90% boundary triggers, independent of request output limits; pruner 
 	}
 	const engine = new TestCompaction(
 		ctx,
-		Compaction.Config({
-			auto: false,
-			thresholdRatio: 0.9,
-			maxTokens: 1,
-		}),
+		Compaction.Config({ auto: false }),
 	);
 	const agent = { session: s } as Parameters<Compaction["compactIfNeeded"]>[0];
 	try {
+		assert.equal(engine.config.thresholdRatio, 0.8);
+		assert.equal(engine.config.retainRatio, 0.16);
+		assert.equal(engine.config.maxTokens, 65536);
 		assert.equal(await engine.compactIfNeeded(agent, "pressure"), null);
 		assert.equal(calls, 0);
-		tokens = 244800;
+		tokens = 217600;
 		await engine.compactIfNeeded(agent, "pressure");
 		assert.equal(calls, 1);
 		ctx.set("toolResultPruner", {
@@ -576,7 +575,7 @@ test("model overrides inherit absent fields, support exact routes and ignore leg
 		let tokens =
 			config.modelPolicies[0]?.thresholdRatio === undefined &&
 			config.thresholdRatio === undefined
-				? 244800
+				? 217600
 				: 136000;
 		let calls = 0;
 		ctx.set("llm", {

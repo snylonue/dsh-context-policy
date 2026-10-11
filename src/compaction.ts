@@ -155,8 +155,8 @@ export class PercentageCompactionEngine extends BasicCompactionEngine {
 		PercentageCompactionConfig
 	> = Schema.object({
 		...fields,
-		thresholdRatio: Schema.number().min(0).max(1).default(0.9),
-		maxTokens: Schema.natural().default(8192),
+		thresholdRatio: Schema.number().min(0).max(1).default(0.8),
+		maxTokens: Schema.natural().default(65536),
 		auto: Schema.boolean().default(true),
 		modelPolicies: Schema.array(
 			Schema.object({

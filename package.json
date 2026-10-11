@@ -4,6 +4,14 @@
 	"description": "Percentage-only compaction and model-configurable GPT and DeepSeek token counting for DSH",
 	"type": "module",
 	"license": "MIT",
+	"keywords": [
+		"dsh-plugin"
+	],
+	"repository": "github:snylonue/dsh-context-policy",
+	"packageManager": "pnpm@12.3.4",
+	"publishConfig": {
+		"access": "public"
+	},
 	"engines": {
 		"node": ">=24",
 		"dsh": "0.2.0-rc.2"
@@ -29,6 +37,7 @@
 			"types": "./dist/core.d.ts",
 			"default": "./dist/core.js"
 		},
+		"./locale/*.json": "./locale/*.json",
 		"./package.json": "./package.json"
 	},
 	"files": [
@@ -36,6 +45,7 @@
 		"src",
 		"assets",
 		"cordis.patch.yml",
+		"locale/*.json",
 		"README.md",
 		"LICENSE",
 		"UPSTREAM.md",
