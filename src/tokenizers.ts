@@ -1,0 +1,84 @@
+import type { EpochHeader } from "@deepseek-ai/dsh-session";
+import type { MeterConfig, ResolvedPolicy } from "./types.js";
+import { Tiktoken } from "js-tiktoken/lite";
+import ranks from "js-tiktoken/ranks/o200k_base";
+
+// Only the modern GPT vocabulary is loaded. Treat special-token-looking user
+// text as ordinary text, rather than rejecting or interpreting it as control.
+let o200kBase: Tiktoken | undefined;
+const caches = new Map<
+	(text: string) => number,
+	{ values: Map<string, number>; chars: number }
+>();
+const tokenizers = new Map<string, (text: string) => number>([
+	[
+		"o200k_base",
+		(text: string) => {
+			o200kBase ??= new Tiktoken(ranks);
+			return o200kBase.encode(text, [], []).length;
+		},
+	],
+]);
+
+export function registerTokenizer(
+	name: string,
+	count: (text: string) => number,
+) {
+	if (tokenizers.has(name))
+		throw new Error(`Tokenizer already registered: ${name}`);
+	tokenizers.set(name, count);
+	return () => {
+		if (tokenizers.get(name) === count) {
+			tokenizers.delete(name);
+			caches.delete(count);
+		}
+	};
+}
+
+export function countText(text: string, tokenizer: string): number {
+	const count = tokenizers.get(tokenizer);
+	if (!count) throw new Error(`Unknown tokenizer: ${tokenizer}`);
+	let cache = caches.get(count);
+	if (!cache) {
+		cache = { values: new Map(), chars: 0 };
+		caches.set(count, cache);
+	}
+	const cached = cache.values.get(text);
+	if (cached !== undefined) return cached;
+	const result = count(text);
+	if (!Number.isSafeInteger(result) || result < 0)
+		throw new TypeError("Tokenizer must return a non-negative safe integer");
+	if (text.length <= 2000000) {
+		while (cache.values.size >= 512 || cache.chars + text.length > 2000000) {
+			const oldest = cache.values.keys().next();
+			if (oldest.done) break;
+			const key = oldest.value;
+			cache.chars -= key.length;
+			cache.values.delete(key);
+		}
+		cache.values.set(text, result);
+		cache.chars += text.length;
+	}
+	return result;
+}
+
+export function resolvePolicy(
+	config: MeterConfig,
+	header: EpochHeader | null,
+): Readonly<ResolvedPolicy> {
+	const policies = config.modelPolicies;
+	const route = header?.config;
+	const match =
+		policies.find(
+			(p) => p.provider === route?.provider && p.model === route?.model,
+		) ??
+		policies.find((p) => p.provider === undefined && p.model === route?.model);
+	return Object.freeze({
+		tokenizer: config.defaultTokenizer,
+		tokensPerMessage: 3,
+		toolsOverhead: 4,
+		replyPrimingTokens: 3,
+		includeReasoning: false,
+		...match,
+	});
+}

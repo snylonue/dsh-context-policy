@@ -1,0 +1,19 @@
+# Replaces the global meter and compaction service.
+# Scoped preset compaction must also be replaced.
+- id: token-meter
+  name: '@deepseek-ai/dsh-token-meter'
+  disabled: true
+- id: compaction-basic
+  name: '@deepseek-ai/dsh-compaction-basic'
+  disabled: true
+- insert:
+    - id: model-token-meter
+      name: '@snylonue/dsh-context-policy/token-meter'
+      config:
+        defaultTokenizer: o200k_base
+    - id: percentage-compaction
+      name: '@snylonue/dsh-context-policy/compaction'
+      config:
+        thresholdRatio: 0.9
+        retainRatio: 0.16
+        maxTokens: 8192

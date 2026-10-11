@@ -1,0 +1,13 @@
+# Replace the existing compaction group's child in the preset's plugin list.
+# Preserve its group/isolate placement; do not replace a whole preset config
+# with this fragment, because DSH patch config replacement is not a deep merge.
+- group: true
+  isolate: [compaction]
+  config:
+    - name: '@snylonue/dsh-context-policy/compaction'
+      config:
+        thresholdRatio: 0.9
+        retainRatio: 0.16
+        maxTokens: 8192
+        compactionRetries: 1
+        maxOverflowRetries: 1

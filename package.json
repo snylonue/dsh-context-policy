@@ -1,0 +1,82 @@
+{
+	"name": "@snylonue/dsh-context-policy",
+	"version": "0.1.0",
+	"description": "Percentage-only compaction and model-configurable GPT token counting for DSH",
+	"type": "module",
+	"license": "MIT",
+	"engines": {
+		"node": ">=24",
+		"dsh": "0.2.0-rc.2"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/token-meter.d.ts",
+			"default": "./dist/token-meter.js"
+		},
+		"./token-meter": {
+			"types": "./dist/token-meter.d.ts",
+			"default": "./dist/token-meter.js"
+		},
+		"./compaction": {
+			"types": "./dist/compaction.d.ts",
+			"default": "./dist/compaction.js"
+		},
+		"./tokenizers": {
+			"types": "./dist/tokenizers.d.ts",
+			"default": "./dist/tokenizers.js"
+		},
+		"./core": {
+			"types": "./dist/core.d.ts",
+			"default": "./dist/core.js"
+		},
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"dist",
+		"src",
+		"cordis.patch.yml",
+		"README.md",
+		"LICENSE",
+		"UPSTREAM.md",
+		"examples",
+		"tsconfig.json",
+		"scripts",
+		"tsconfig.check.json",
+		"tests"
+	],
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"test": "node --test tests/*.test.ts",
+		"check": "node scripts/check.ts",
+		"prepack": "node scripts/check.ts",
+		"format": "biome format --write .",
+		"lint": "biome lint ."
+	},
+	"dependencies": {
+		"js-tiktoken": "1.0.21"
+	},
+	"peerDependencies": {
+		"@deepseek-ai/cordis": "~4.0.4",
+		"@deepseek-ai/schemastery": "~3.18.4",
+		"@deepseek-ai/dsh-compaction": "0.2.0-rc.2",
+		"@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+		"@deepseek-ai/dsh-session": "0.2.0-rc.2",
+		"@deepseek-ai/dsh-session-projection": "0.2.0-rc.2",
+		"@deepseek-ai/dsh-util-values": "0.2.0-rc.2",
+		"@deepseek-ai/dsh-token-meter": "0.2.0-rc.2",
+		"zod": "^4.4.3",
+		"@deepseek-ai/dsh-compaction-basic": "0.2.0-rc.2"
+	},
+	"dsh": {
+		"manifestVersion": 1,
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		}
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2",
+		"typescript": "5.9.3",
+		"@types/node": "24.19.0",
+		"@deepseek-ai/dsh-app-boot": "0.2.0-rc.2"
+	}
+}
