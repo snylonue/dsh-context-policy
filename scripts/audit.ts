@@ -10,7 +10,7 @@ import {
 	inputTokens,
 	measureState,
 } from "../dist/core.js";
-const meterConfig = { defaultTokenizer: "o200k_base", modelPolicies: [] };
+const meterConfig = { defaultTokenizer: "deepseek_v4", modelPolicies: [] };
 const files = process.argv.slice(2);
 if (!files.length)
 	throw new Error("Pass one or more session.v4.jsonl.zstd paths");
@@ -94,7 +94,7 @@ for (const file of files) {
 console.log(
 	JSON.stringify(
 		{
-			tokenizer: "o200k_base",
+			tokenizer: meterConfig.defaultTokenizer,
 			adapterPricingAvailable: false,
 			note: "Offline estimates omit provider-specific image/file projections and serialization.",
 			rows,

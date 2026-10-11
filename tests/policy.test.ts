@@ -151,7 +151,64 @@ test("DeepSeek V4 model policies reprice measurement and preserve the default ro
 		assert.equal(measurement.surfaceTokens, 5); // 2 text + 3 message
 		assert.equal(measurement.totalTokens, 8); // + 3 reply
 	}
-	assert.equal(resolvePolicy(cfg, header()).tokenizer, "o200k_base");
+	assert.equal(resolvePolicy(cfg, header()).tokenizer, "deepseek_v4");
+});
+
+test("DeepSeek V4 is the global default; provider defaults price every model on that provider", () => {
+	const defaults = Meter.Config({});
+	assert.equal(defaults.defaultTokenizer, "deepseek_v4");
+	assert.deepEqual(defaults.providerTokenizers, {});
+	assert.equal(resolvePolicy(defaults, null).tokenizer, "deepseek_v4");
+	const cfg = Meter.Config({ providerTokenizers: { openai: "o200k_base" } });
+	for (const [provider, model, tokenizer, tokens] of [
+		["openai", "new-model", "o200k_base", 13],
+		["openai", "other-model", "o200k_base", 13],
+		["other", "new-model", "deepseek_v4", 14],
+	] as const) {
+		const state = [
+			event(0, "request/header", { header: header(provider, model) }),
+			user(1, "DeepSeek V4 Pro / Flash"),
+		].reduce(fold, initialState());
+		const measurement = measureState(state, cfg);
+		assert.equal(measurement.tokenizer, tokenizer);
+		assert.equal(measurement.totalTokens, tokens);
+	}
+	const customDefault = Meter.Config({ defaultTokenizer: "o200k_base" });
+	assert.equal(resolvePolicy(customDefault, null).tokenizer, "o200k_base");
+});
+
+test("matched model policy overrides the provider tokenizer, or inherits it when omitted", () => {
+	const cfg = Meter.Config({
+		providerTokenizers: { openai: "o200k_base", another: "o200k_base" },
+		modelPolicies: [
+			{ model: "shared", tokenizer: "deepseek_v4" },
+			{
+				provider: "openai",
+				model: "shared",
+				tokenizer: "o200k_base",
+				tokensPerMessage: 7,
+			},
+			{ model: "framing", tokensPerMessage: 9 },
+			{ provider: "openai", model: "exact-inherit", tokensPerMessage: 11 },
+		],
+	});
+	const exact = resolvePolicy(cfg, header("openai", "shared"));
+	assert.equal(exact.tokenizer, "o200k_base");
+	assert.equal(exact.tokensPerMessage, 7);
+	assert.equal(
+		resolvePolicy(cfg, header("another", "shared")).tokenizer,
+		"deepseek_v4",
+	);
+	const inherited = resolvePolicy(cfg, header("openai", "framing"));
+	assert.equal(inherited.tokenizer, "o200k_base");
+	assert.equal(inherited.tokensPerMessage, 9);
+	assert.equal(
+		resolvePolicy(cfg, header("other", "framing")).tokenizer,
+		"deepseek_v4",
+	);
+	const exactInherited = resolvePolicy(cfg, header("openai", "exact-inherit"));
+	assert.equal(exactInherited.tokenizer, "o200k_base");
+	assert.equal(exactInherited.tokensPerMessage, 11);
 });
 
 test("calibrate prompt plus cache traffic; never add hidden reasoning output blindly", () => {

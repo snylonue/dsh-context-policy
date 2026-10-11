@@ -21,6 +21,12 @@ test("bundle composition disables upstream meter and compaction while preserving
 		warnings.push(warning),
 	);
 	assert.deepEqual(warnings, []);
+	assert.deepEqual(
+		entries.find((entry) => entry.id === "model-token-meter")?.config,
+		{
+			defaultTokenizer: "deepseek_v4",
+		},
+	);
 	for (const id of ["token-meter", "compaction-basic"])
 		assert.equal(entries.find((entry) => entry.id === id)?.disabled, true);
 	const active = entries

@@ -66,12 +66,13 @@ export function resolvePolicy(
 			(p) => p.provider === route?.provider && p.model === route?.model,
 		) ??
 		policies.find((p) => p.provider === undefined && p.model === route?.model);
+	const providerTokenizer = route && config.providerTokenizers?.[route.provider];
 	return Object.freeze({
-		tokenizer: config.defaultTokenizer,
 		tokensPerMessage: 3,
 		toolsOverhead: 4,
 		replyPrimingTokens: 3,
 		includeReasoning: false,
 		...match,
+		tokenizer: match?.tokenizer ?? providerTokenizer ?? config.defaultTokenizer,
 	});
 }

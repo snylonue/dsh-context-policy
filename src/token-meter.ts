@@ -18,13 +18,14 @@ declare module "@deepseek-ai/dsh-session-projection" {
 }
 
 export const Config: settings<MeterConfigInput, MeterConfig> = settings.object({
-	defaultTokenizer: settings.string().default("o200k_base"),
+	defaultTokenizer: settings.string().default("deepseek_v4"),
+	providerTokenizers: settings.dict(settings.string()).default({}),
 	modelPolicies: settings
 		.array(
 			settings.object({
 				provider: settings.string(),
 				model: settings.string().required(),
-				tokenizer: settings.string().default("o200k_base"),
+				tokenizer: settings.string(),
 				tokensPerMessage: settings.number().min(0).step(1),
 				toolsOverhead: settings.number().min(0).step(1),
 				replyPrimingTokens: settings.number().min(0).step(1),

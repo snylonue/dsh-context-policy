@@ -10,7 +10,7 @@
     - id: model-token-meter
       name: '@snylonue/dsh-context-policy/token-meter'
       config:
-        defaultTokenizer: o200k_base
+        defaultTokenizer: deepseek_v4
     - id: percentage-compaction
       name: '@snylonue/dsh-context-policy/compaction'
       config:

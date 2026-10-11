@@ -23,7 +23,7 @@ export type MeterEvent =
 export interface ModelPolicy {
 	provider?: string;
 	model: string;
-	tokenizer: string;
+	tokenizer?: string;
 	tokensPerMessage?: number;
 	toolsOverhead?: number;
 	replyPrimingTokens?: number;
@@ -31,10 +31,12 @@ export interface ModelPolicy {
 }
 export interface MeterConfigInput {
 	defaultTokenizer?: string;
-	modelPolicies?: (Omit<ModelPolicy, "tokenizer"> & { tokenizer?: string })[];
+	providerTokenizers?: Record<string, string>;
+	modelPolicies?: ModelPolicy[];
 }
 export interface MeterConfig {
 	defaultTokenizer: string;
+	providerTokenizers?: Record<string, string>;
 	modelPolicies: ModelPolicy[];
 }
 export interface ResolvedPolicy {

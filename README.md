@@ -56,7 +56,7 @@ Automatic pressure compaction starts when projected input tokens reach the confi
 
 The pressure retention budget defaults to 16% of the full context window. A fixed `retainTokens` budget can replace the ratio. Range selection preserves the leading system message and complete tool call/result pairs. Compaction rechecks pressure after pruning and summarization, with a configurable retry limit.
 
-The meter uses the `o200k_base` tokenizer by default. A successful request's provider-reported input usage calibrates subsequent custom measurements. Zero-usage failures preserve those measurements. Billing totals follow the upstream provider-usage accounting rules. The existing client pressure and composition views display the custom counts.
+The meter uses the `deepseek_v4` tokenizer by default. Provider defaults and model policies can select a different tokenizer. A successful request's provider-reported input usage calibrates subsequent custom measurements. Zero-usage failures preserve those measurements. Billing totals follow the upstream provider-usage accounting rules. The existing client pressure and composition views display the custom counts.
 
 ## Compaction configuration
 
@@ -112,7 +112,9 @@ The global entry has the ID model-token-meter. A profile patch can select a toke
 ```yaml
 - id: model-token-meter
   config:
-    defaultTokenizer: o200k_base
+    defaultTokenizer: deepseek_v4
+    providerTokenizers:
+      example-provider: o200k_base
     modelPolicies:
       - provider: example-provider
         model: example-model
@@ -125,11 +127,12 @@ The global entry has the ID model-token-meter. A profile patch can select a toke
         tokenizer: o200k_base
 ```
 
-The identifiers in this example are placeholders. An exact provider/model policy takes precedence over a model-only policy. Unmatched routes use defaultTokenizer.
+The identifiers in this example are placeholders. An exact provider/model policy takes precedence over a model-only policy. The matched policy's explicit tokenizer overrides `providerTokenizers[provider]`, which overrides `defaultTokenizer`. A matched policy that omits tokenizer inherits the provider default or the global default. With no request header, the global default applies.
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `defaultTokenizer` | `o200k_base` | Registered tokenizer for unmatched routes. |
+| `defaultTokenizer` | `deepseek_v4` | Registered tokenizer used when no model or provider tokenizer applies. |
+| `providerTokenizers` | {} | Provider identifier to default tokenizer mapping, applied to all models on that provider. |
 | `modelPolicies` | [] | Route-specific tokenizer and accounting settings. |
 | `tokensPerMessage` | 3 | Per-message framing allowance. |
 | `toolsOverhead` | 4 | Allowance added when tool definitions are present. |
@@ -142,23 +145,20 @@ The last four options belong to model policy entries. DSH validates these fields
 
 | Name | Vocabulary |
 | --- | --- |
-| `o200k_base` | Modern GPT vocabulary; the default. |
-| `deepseek_v4` | Official shared DeepSeek V4 Pro / Flash vocabulary and pre-tokenization rules. |
+| `o200k_base` | Modern GPT vocabulary. |
+| `deepseek_v4` | Official shared DeepSeek V4 Pro / Flash vocabulary and pre-tokenization rules; the default. |
 
-Select `deepseek_v4` explicitly for the DeepSeek V4 routes in your profile:
+DeepSeek V4 is the global default. Select GPT token counting for all models on a provider with a provider default:
 
 ```yaml
 - id: model-token-meter
   config:
-    defaultTokenizer: o200k_base
-    modelPolicies:
-      - model: deepseek-v4-pro
-        tokenizer: deepseek_v4
-      - model: deepseek-v4-flash
-        tokenizer: deepseek_v4
+    defaultTokenizer: deepseek_v4
+    providerTokenizers:
+      openai: o200k_base
 ```
 
-Use the model identifiers configured in your DSH provider; add `provider` to restrict a policy to one provider. For a profile using only DeepSeek V4, set `defaultTokenizer: deepseek_v4`. Model routes are selected through these policies.
+Use the provider identifiers configured in your DSH profile; `openai` is an example. Add `modelPolicies` when an individual model needs a different tokenizer or framing allowance.
 
 Both builtins use `@huggingface/tokenizers` with compressed local assets loaded on first use, so counting works offline. The [GPT asset provenance](./assets/o200k-base/README.md) and [DeepSeek asset provenance](./assets/deepseek-v4/README.md) record the pinned sources, checksums, licenses, and reference fixture generation. The GPT asset preserves the previous `o200k_base` counting behavior, including its Unicode whitespace rules. Both builtins count literal special-token-looking content as ordinary text and add no BOS/EOS tokens. Complete requests remain estimates because provider chat framing and tool serialization are accounted for separately.
 
