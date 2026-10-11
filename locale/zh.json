@@ -1,6 +1,6 @@
 {
 	"meta": {
-		"title": "上下文策略",
-		"description": "按上下文窗口比例自动压缩，并支持按模型配置 GPT 和 DeepSeek 的 token 计数。"
+		"title": "Context Policy",
+		"description": "按上下文窗口比例自动压缩，并支持按模型配置的 token 计数。"
 	}
 }

@@ -1,6 +1,6 @@
 {
 	"meta": {
 		"title": "Context Policy",
-		"description": "Percentage-based context compaction and model-configurable GPT and DeepSeek token counting."
+		"description": "Percentage-based context compaction and model-configurable token counting."
 	}
 }
