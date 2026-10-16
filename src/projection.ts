@@ -6,7 +6,6 @@ import type {
 	ContextPressureProjection,
 	ContextBreakdownProjection,
 } from "@deepseek-ai/dsh-token-meter";
-import { estimateToolsTokens } from "@deepseek-ai/dsh-token-meter/estimate";
 import { z } from "zod";
 import { initialState, fold, measureState } from "./core.js";
 import type { MeterServices } from "./core.js";
@@ -16,7 +15,6 @@ const count = z.number().int().nonnegative();
 const nodeSchema = z.object({
 	seq: count.transform(SessionSeq),
 	message: z.custom<Message>().nullable(),
-	heuristicTokens: count,
 });
 const replaySchema = z.object({
 	nodes: z.array(nodeSchema),
@@ -26,7 +24,7 @@ const replaySchema = z.object({
 });
 export const replayProjection: ProjectionDefinition<"contextPolicyMeter"> = {
 	key: "contextPolicyMeter",
-	stateVersion: 1,
+	stateVersion: 2,
 	stateSchema: replaySchema,
 	init: initialState,
 	apply: fold,
@@ -34,7 +32,7 @@ export const replayProjection: ProjectionDefinition<"contextPolicyMeter"> = {
 
 // Retain the native state fields so callers of the original keys remain type-compatible.
 interface DisplayState extends ReplayState {
-	nodes: (ReplayNode & { system: boolean })[];
+	nodes: (ReplayNode & { system: boolean; heuristicTokens: number })[];
 	surfaceTokens: number;
 	breakdown: ContextBreakdownProjection;
 	contextWindow?: number;
@@ -45,7 +43,9 @@ const breakdownSchema = z.object({
 	messageTokens: count,
 });
 const displaySchema = replaySchema.extend({
-	nodes: z.array(nodeSchema.extend({ system: z.boolean() })),
+	nodes: z.array(
+		nodeSchema.extend({ system: z.boolean(), heuristicTokens: count }),
+	),
 	surfaceTokens: count,
 	breakdown: breakdownSchema,
 	contextWindow: z.number().int().positive().optional(),
@@ -58,7 +58,12 @@ function initialDisplayState(): DisplayState {
 		breakdown: { systemTokens: 0, toolsTokens: 0, messageTokens: 0 },
 	};
 }
-function foldDisplay(state: DisplayState, event: SessionEvent): DisplayState {
+function foldDisplay(
+	state: DisplayState,
+	event: SessionEvent,
+	config: MeterConfig,
+	services: MeterServices,
+): DisplayState {
 	const next = fold(state, event);
 	const { contextWindow, ...withoutWindow } = {
 		...next,
@@ -73,32 +78,24 @@ function foldDisplay(state: DisplayState, event: SessionEvent): DisplayState {
 		window === state.contextWindow
 	)
 		return state;
-	const nodes =
-		next.nodes === state.nodes
-			? state.nodes
-			: next.nodes.map((node) => ({
-					...node,
-					system: node.message?.role === "system",
-				}));
-	const surfaceTokens =
-		nodes === state.nodes
-			? state.surfaceTokens
-			: nodes.reduce((total, node) => total + node.heuristicTokens, 0);
+	const measurement = measureState(next, config, services);
+	const nodes = next.nodes.map((node, index) => ({
+		...node,
+		system: node.message?.role === "system",
+		// Native consumers use this field; it carries the model count, not a second estimator.
+		heuristicTokens: measurement.nodes[index].tokens,
+	}));
+	const surfaceTokens = measurement.surfaceTokens;
 	const systemTokens =
-		nodes === state.nodes
-			? state.breakdown.systemTokens
-			: (nodes.findLast((node) => node.system && node.heuristicTokens > 0)
-					?.heuristicTokens ?? 0);
+		nodes.findLast((node) => node.system && node.message?.content.length)
+			?.heuristicTokens ?? 0;
 	return {
 		...withoutWindow,
 		nodes,
 		surfaceTokens,
 		breakdown: {
 			systemTokens,
-			toolsTokens:
-				next.header === state.header
-					? state.breakdown.toolsTokens
-					: estimateToolsTokens(next.header ?? undefined),
+			toolsTokens: measurement.toolsTokens,
 			messageTokens: surfaceTokens - systemTokens,
 		},
 		...(window === undefined ? {} : { contextWindow: window }),
@@ -144,10 +141,11 @@ export function createDisplayProjections(
 		return value;
 	};
 	const replay = {
-		stateVersion: 7,
+		stateVersion: 8,
 		stateSchema: displaySchema,
 		init: initialDisplayState,
-		apply: foldDisplay,
+		apply: (state: DisplayState, event: SessionEvent) =>
+			foldDisplay(state, event, config, services),
 	};
 	const pressure = {
 		...replay,

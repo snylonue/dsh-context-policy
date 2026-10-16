@@ -54,7 +54,6 @@ export interface ResolvedPolicy {
 export interface ReplayNode {
 	seq: SessionSeq;
 	message: Message | null;
-	heuristicTokens: number;
 }
 export interface ReplayState {
 	nodes: readonly ReplayNode[];

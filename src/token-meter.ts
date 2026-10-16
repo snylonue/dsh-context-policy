@@ -77,7 +77,7 @@ export class ModelTokenMeter extends Service {
 	}
 	estimateMessage(message: Message) {
 		return priceSurface(
-			[{ seq: SessionSeq(0), message, heuristicTokens: 0 }],
+			[{ seq: SessionSeq(0), message }],
 			null,
 			this.config,
 			this.services,

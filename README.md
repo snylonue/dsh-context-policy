@@ -201,7 +201,7 @@ Compared with DSH 0.2.0-rc.2's official `dsh-token-meter` and `dsh-compaction-ba
 
 The compaction service extends `BasicCompactionEngine` and replaces automatic pressure range selection. Summarization, durable transactions, manual commands, and overflow listeners use the upstream implementation.
 
-The meter uses the public Cordis service lifecycle and projection registration API. Its billing fold is maintained locally because the upstream definition is not exported at runtime. The public fixed-density estimator remains the source of durable shadow prices.
+The meter uses the public Cordis service lifecycle and projection registration API. Its billing fold is maintained locally because the upstream definition is not exported at runtime. Replay state does not retain fixed-density heuristic prices. Projection state, wire composition, and durable compaction shadow prices all use model-configured token counts. The upstream `heuristicTokens` compatibility field carries the same model count as `tokens`. Projection cache versions are bumped to invalidate older heuristic state. This does not change independent history estimators owned by other plugins.
 
 ## Development and release
 

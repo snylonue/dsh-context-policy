@@ -24,6 +24,7 @@ import {
 	registerTokenizer,
 } from "../dist/tokenizers.js";
 import { initialState, fold, measureState } from "../dist/core.js";
+import { createDisplayProjections, replayProjection } from "../dist/projection.js";
 
 const meterConfig = { defaultTokenizer: "o200k_base", modelPolicies: [] };
 const header = (provider = "p", model = "gpt-new", maxTokens = 128000) =>
@@ -296,14 +297,16 @@ test("failure with zero usage preserves occupancy; retries still accumulate bill
 	}
 });
 
-test("replacement reprices removed content while keeping the fixed durable shadow heuristic", () => {
+test("replacement reprices removed content and uses model counts for durable shadow prices", () => {
 	let state = [
 		event(0, "request/header", { header: header() }),
 		user(1, "long ".repeat(600)),
 		assistant(2, { inputTokens: 2000, outputTokens: 2 }),
 	].reduce(fold, initialState());
 	const before = measureState(state, meterConfig);
-	const originalShadow = state.nodes[0].heuristicTokens;
+	const originalMessage = state.nodes[0].message;
+	assert(state.nodes.every((node) => !("heuristicTokens" in node)));
+	assert(before.nodes.every((node) => node.heuristicTokens === node.tokens));
 	state = fold(
 		state,
 		user(3, "summary", { startSeq: SessionSeq(1), endSeq: SessionSeq(1) }),
@@ -316,8 +319,9 @@ test("replacement reprices removed content while keeping the fixed durable shado
 		[3, 2],
 	);
 	assert(state.anchor);
-	assert.equal(state.anchor.nodes[0].heuristicTokens, originalShadow);
-	assert.equal(after.nodes[0].heuristicTokens, state.nodes[0].heuristicTokens);
+	assert.equal(state.anchor.nodes[0].message, originalMessage);
+	assert(after.nodes.every((node) => node.heuristicTokens === node.tokens));
+	assert(state.nodes.every((node) => !("heuristicTokens" in node)));
 });
 
 test("header/model changes reject old usage anchor and reprice using mapped tokenizer", () => {
@@ -424,7 +428,11 @@ test("actual Cordis registry replays nonempty logs, validates all UI views and u
 		assert(ctx.sessionProjections.stateOf(s, "contextPolicyMeter"));
 		assert.equal(
 			ctx.sessionProjections.stateOf(s, "contextPressure")?.surfaceTokens,
-			actual.nodes.reduce((total, node) => total + node.heuristicTokens, 0),
+			actual.surfaceTokens,
+		);
+		assert.deepEqual(
+			ctx.sessionProjections.stateOf(s, "contextBreakdown")?.breakdown,
+			values.contextBreakdown,
 		);
 		assert.equal(values.tokenUsage?.uncachedInputTokens, 100);
 		const checkpoint = ctx.sessionProjections.checkpoint(s);
@@ -468,6 +476,93 @@ test("actual Cordis registry replays nonempty logs, validates all UI views and u
 			SessionLogOffset(0),
 		);
 		assert.deepEqual(restored.snapshot.values, updated);
+	} finally {
+		await ctx.fiber.dispose();
+	}
+});
+
+test("display state and serialized checkpoints use model prices across route and surface changes", () => {
+	const cfg = Meter.Config({
+		defaultTokenizer: "o200k_base",
+		modelPolicies: [
+			{ provider: "p", model: "gpt-new", tokensPerMessage: 31, toolsOverhead: 17 },
+			{ provider: "p", model: "other", tokenizer: "deepseek_v4", tokensPerMessage: 43 },
+		],
+	});
+	const services = {
+		llm: {
+			imageRequestPricing: () => ({
+				priceImages: (images: readonly { offloaded?: boolean }[]) =>
+					images.map((image) => ({ visualTokens: image.offloaded ? 0 : 123, text: "image" })),
+			}),
+			fileRequestText: () => "rendered file text",
+		},
+	};
+	const display = createDisplayProjections(cfg, services);
+	let pressure = display.pressure.init();
+	let breakdown = display.breakdown.init();
+	let replay = initialState();
+	const withTools = { ...header(), tools: [{ name: "tool", description: "description", parameters: { type: "object" } }] };
+	const events = [
+		event(0, "system/message", { message: { role: "system", content: [{ type: "text", text: "system instructions" }] } }, "append"),
+		event(1, "user/message", createUserMessage({ source: { kind: "user" }, content: [
+			{ type: "text", text: "你好世界" },
+			{ type: "image", image: "image" } as never,
+			{ type: "file", attachment: { id: "file" } } as never,
+		] }), "append"),
+		event(2, "request/header", { header: withTools }),
+		event(3, "request/context", { contextWindow: 272000 }),
+		assistant(4, { inputTokens: 300, outputTokens: 2 }),
+		event(5, "request/header", { header: { ...withTools, config: header("p", "other").config } }),
+		event(6, "image/offload", { targets: [{ seq: SessionSeq(1), imageIndexes: [0] }] }),
+		user(7, "replacement", { startSeq: SessionSeq(1), endSeq: SessionSeq(1) }),
+		event(8, "system/message", { message: { role: "system", content: [] } }, { startSeq: SessionSeq(0), endSeq: SessionSeq(0) }),
+	];
+	for (const next of events) {
+		replay = fold(replay, next);
+		pressure = display.pressure.apply(pressure, next);
+		breakdown = display.breakdown.apply(breakdown, next);
+		const measurement = measureState(replay, cfg, services);
+		for (const [definition, state] of [[display.pressure, pressure], [display.breakdown, breakdown]] as const) {
+			assert.equal(state.surfaceTokens, measurement.surfaceTokens);
+			assert.deepEqual(state.nodes.map((node) => node.heuristicTokens), measurement.nodes.map((node) => node.tokens));
+			assert.deepEqual(state.breakdown, display.breakdown.wire.view(breakdown));
+			assert.equal(state.breakdown.toolsTokens, measurement.toolsTokens);
+			const restored = definition.stateSchema.parse(JSON.parse(JSON.stringify(state)));
+			assert.deepEqual(restored, state);
+			assert.deepEqual(definition.wire.view(restored), definition.wire.view(state));
+		}
+		assert.equal(display.pressure.wire.view(pressure).projectedTokens, measurement.totalTokens);
+		assert(replay.nodes.every((node) => !("heuristicTokens" in node)));
+	}
+	assert.equal(breakdown.breakdown.systemTokens, 0);
+	assert(display.pressure.stateVersion > 7);
+	assert(replayProjection.stateVersion > 1);
+});
+
+test("old heuristic checkpoints are invalidated and rebuilt from the log", async () => {
+	const ctx = new Context();
+	await ctx.plugin(Registry).await();
+	await ctx.plugin(Meter, Meter.Config({ defaultTokenizer: "o200k_base" })).await();
+	try {
+		const events = [event(0, "request/header", { header: header() }), user(1, "你好世界")];
+		const s = session(events);
+		const checkpoint = structuredClone(ctx.sessionProjections.checkpoint(s));
+		for (const key of ["contextPressure", "contextBreakdown", "contextPolicyMeter"] as const) {
+			const row = checkpoint[key];
+			assert(row);
+			row.ver = key === "contextPolicyMeter" ? 1 : 7;
+			Object.assign(row.val as object, { surfaceTokens: 99999, breakdown: { systemTokens: 99999, toolsTokens: 99999, messageTokens: 99999 } });
+		}
+		const cached = ctx.sessionProjections.viewCheckpoint(checkpoint);
+		assert.equal(cached.contextPressure, undefined);
+		assert.equal(cached.contextBreakdown, undefined);
+		assert.equal(ctx.sessionProjections.restoreFloor(checkpoint), 0);
+		const restored = ctx.sessionProjections.restore(checkpoint, events, SessionLogOffset(0), s.header, SessionLogOffset(0));
+		assert.deepEqual(restored.snapshot.values, ctx.sessionProjections.snapshot(s).values);
+		const state = restored.checkpoint.contextPressure?.val as { surfaceTokens: number; breakdown: unknown };
+		assert.equal(state.surfaceTokens, ctx.tokenMeter.measure(s).surfaceTokens);
+		assert.deepEqual(state.breakdown, restored.snapshot.values.contextBreakdown);
 	} finally {
 		await ctx.fiber.dispose();
 	}

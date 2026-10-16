@@ -31,7 +31,6 @@ import {
 	headerEquals,
 	isSurfaceEvent,
 } from "@deepseek-ai/dsh-session";
-import { estimateMessage as shadowPrice } from "@deepseek-ai/dsh-token-meter/estimate";
 import { lastAssistantStreamChunk } from "@deepseek-ai/dsh-llm";
 import { deepFreeze } from "@deepseek-ai/dsh-util-values";
 import { countText, resolvePolicy } from "./tokenizers.js";
@@ -105,7 +104,6 @@ export function fold(state: ReplayState, event: MeterEvent): ReplayState {
 		const node = {
 			seq: event.seq,
 			message,
-			heuristicTokens: message ? shadowPrice(message) : 0,
 		};
 		if (event.surfaceOp === "append") next.nodes = [...state.nodes, node];
 		else {
@@ -213,7 +211,8 @@ export function priceSurface(
 			)
 				tokens = body + policy.tokensPerMessage;
 		}
-		return { seq: node.seq, tokens, heuristicTokens: node.heuristicTokens };
+		// Upstream compaction reads this compatibility field for shadowedTokenCount.
+		return { seq: node.seq, tokens, heuristicTokens: tokens };
 	});
 	const surfaceTokens = priced.reduce((sum, node) => sum + node.tokens, 0);
 	const toolsTokens = header?.tools?.length
