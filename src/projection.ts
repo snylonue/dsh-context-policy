@@ -32,6 +32,7 @@ export const replayProjection: ProjectionDefinition<"contextPolicyMeter"> = {
 
 // Retain the native state fields so callers of the original keys remain type-compatible.
 interface DisplayState extends ReplayState {
+	systems: { seq: SessionSeq; tokens: number }[];
 	nodes: (ReplayNode & { system: boolean; heuristicTokens: number })[];
 	surfaceTokens: number;
 	breakdown: ContextBreakdownProjection;
@@ -43,6 +44,7 @@ const breakdownSchema = z.object({
 	messageTokens: count,
 });
 const displaySchema = replaySchema.extend({
+	systems: z.array(z.object({ seq: count.transform(SessionSeq), tokens: count })),
 	nodes: z.array(
 		nodeSchema.extend({ system: z.boolean(), heuristicTokens: count }),
 	),
@@ -53,6 +55,7 @@ const displaySchema = replaySchema.extend({
 function initialDisplayState(): DisplayState {
 	return {
 		...initialState(),
+		systems: [],
 		nodes: [],
 		surfaceTokens: 0,
 		breakdown: { systemTokens: 0, toolsTokens: 0, messageTokens: 0 },
@@ -79,18 +82,24 @@ function foldDisplay(
 	)
 		return state;
 	const measurement = measureState(next, config, services);
+	// Empty system events have no derived Message but still occupy a surface position.
+	const systemSeqs = new Set(state.systems.map((node) => node.seq));
 	const nodes = next.nodes.map((node, index) => ({
 		...node,
-		system: node.message?.role === "system",
+		system:
+			systemSeqs.has(node.seq) ||
+			(event.type === "system/message" && node.seq === event.seq),
 		// Native consumers use this field; it carries the model count, not a second estimator.
 		heuristicTokens: measurement.nodes[index].tokens,
 	}));
 	const surfaceTokens = measurement.surfaceTokens;
-	const systemTokens =
-		nodes.findLast((node) => node.system && node.message?.content.length)
-			?.heuristicTokens ?? 0;
+	const systems = nodes.flatMap((node) =>
+		node.system ? [{ seq: node.seq, tokens: node.heuristicTokens }] : [],
+	);
+	const systemTokens = systems.findLast((node) => node.tokens > 0)?.tokens ?? 0;
 	return {
 		...withoutWindow,
+		systems,
 		nodes,
 		surfaceTokens,
 		breakdown: {
@@ -117,11 +126,10 @@ export function createDisplayProjections(
 		const cached = views.get(state);
 		if (cached) return cached;
 		const measurement = measureState(state, config, services);
-		const system = state.nodes.findLast(
-			(node) => node.system && node.message?.content.length,
-		);
 		const systemTokens =
-			measurement.nodes.find((node) => node.seq === system?.seq)?.tokens ?? 0;
+			measurement.nodes.findLast(
+				(node, index) => state.nodes[index].system && node.tokens > 0,
+			)?.tokens ?? 0;
 		const pressure: ContextPressureProjection = {
 			projectedTokens: measurement.totalTokens,
 			...(measurement.baseline.kind === "usage"
@@ -141,7 +149,7 @@ export function createDisplayProjections(
 		return value;
 	};
 	const replay = {
-		stateVersion: 8,
+		stateVersion: 9,
 		stateSchema: displaySchema,
 		init: initialDisplayState,
 		apply: (state: DisplayState, event: SessionEvent) =>

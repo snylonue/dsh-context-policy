@@ -540,6 +540,207 @@ test("display state and serialized checkpoints use model prices across route and
 	assert(replayProjection.stateVersion > 1);
 });
 
+test("display projections retain ordered system prices across routes and replacements", () => {
+	const cfg = Meter.Config({
+		defaultTokenizer: "o200k_base",
+		modelPolicies: [{ provider: "p", model: "other", tokensPerMessage: 37 }],
+	});
+	const display = createDisplayProjections(cfg, {});
+	let pressure = display.pressure.init();
+	let breakdown = display.breakdown.init();
+	let replay = initialState();
+	assert.deepEqual(breakdown.systems, []);
+	const events = [
+		event(
+			0,
+			"system/message",
+			{
+				message: {
+					role: "system",
+					content: [{ type: "text", text: "first system" }],
+				},
+			},
+			"append",
+		),
+		event(
+			1,
+			"system/message",
+			{
+				message: {
+					role: "system",
+					content: [{ type: "text", text: "second system" }],
+				},
+			},
+			"append",
+		),
+		event(
+			2,
+			"system/message",
+			{ message: { role: "system", content: [] } },
+			"append",
+		),
+		event(3, "request/header", { header: header() }),
+		event(4, "request/header", { header: header("p", "other") }),
+		event(
+			5,
+			"system/message",
+			{
+				message: {
+					role: "system",
+					content: [{ type: "text", text: "rewritten first" }],
+				},
+			},
+			{ startSeq: SessionSeq(0), endSeq: SessionSeq(0) },
+		),
+		user(6, "tail"),
+		user(7, "summary", { startSeq: SessionSeq(1), endSeq: SessionSeq(6) }),
+		event(
+			8,
+			"system/message",
+			{ message: { role: "system", content: [] } },
+			{ startSeq: SessionSeq(5), endSeq: SessionSeq(5) },
+		),
+	];
+	const expectedSeqs = [
+		[0],
+		[0, 1],
+		[0, 1, 2],
+		[0, 1, 2],
+		[0, 1, 2],
+		[5, 1, 2],
+		[5, 1, 2],
+		[5],
+		[8],
+	];
+	for (const next of events) {
+		replay = fold(replay, next);
+		pressure = display.pressure.apply(pressure, next);
+		breakdown = display.breakdown.apply(breakdown, next);
+		const measurement = measureState(replay, cfg);
+		const systems = expectedSeqs[next.seq].map((seq) => {
+			const node = measurement.nodes.find((node) => node.seq === seq);
+			assert(node);
+			return { seq: SessionSeq(seq), tokens: node.tokens };
+		});
+		for (const [definition, state] of [
+			[display.pressure, pressure],
+			[display.breakdown, breakdown],
+		] as const) {
+			assert.deepEqual(state.systems, systems);
+			assert.equal(
+				state.breakdown.systemTokens,
+				systems.findLast((node) => node.tokens > 0)?.tokens ?? 0,
+			);
+			assert.equal(
+				state.breakdown.messageTokens + state.breakdown.systemTokens,
+				measurement.surfaceTokens,
+			);
+			assert.deepEqual(
+				definition.stateSchema.parse(JSON.parse(JSON.stringify(state))),
+				state,
+			);
+			const { systems: _systems, ...legacy } = state;
+			assert.equal(definition.stateSchema.safeParse(legacy).success, false);
+		}
+		if (next.seq === 5)
+			assert.deepEqual(
+				breakdown.systems.map((node) => node.seq),
+				[5, 1, 2],
+			);
+		if (next.seq === 7)
+			assert.deepEqual(
+				breakdown.systems.map((node) => node.seq),
+				[5],
+			);
+	}
+	assert.deepEqual(breakdown.systems, [{ seq: SessionSeq(8), tokens: 0 }]);
+	assert.equal(display.breakdown.wire.view(breakdown).systemTokens, 0);
+	assert(display.breakdown.stateVersion > 8);
+});
+
+test("pre-systems display checkpoints rebuild and continue replay with current system prices", async () => {
+	const ctx = new Context();
+	await ctx.plugin(Registry).await();
+	await ctx
+		.plugin(Meter, Meter.Config({ defaultTokenizer: "o200k_base" }))
+		.await();
+	try {
+		const events = [
+			event(0, "request/header", { header: header() }),
+			event(
+				1,
+				"system/message",
+				{
+					message: {
+						role: "system",
+						content: [{ type: "text", text: "instructions" }],
+					},
+				},
+				"append",
+			),
+			user(2, "hello"),
+		];
+		const s = session(events);
+		const checkpoint = structuredClone(ctx.sessionProjections.checkpoint(s));
+		for (const key of ["contextPressure", "contextBreakdown"] as const) {
+			const row = checkpoint[key];
+			assert(row);
+			row.ver = 8;
+			assert(row.val !== null && typeof row.val === "object");
+			Reflect.deleteProperty(row.val, "systems");
+		}
+		const cached = ctx.sessionProjections.viewCheckpoint(checkpoint);
+		assert.equal(cached.contextPressure, undefined);
+		assert.equal(cached.contextBreakdown, undefined);
+		assert.equal(ctx.sessionProjections.restoreFloor(checkpoint), 0);
+		const rebuilt = ctx.sessionProjections.restore(
+			checkpoint,
+			events,
+			SessionLogOffset(0),
+			s.header,
+			SessionLogOffset(0),
+		);
+		assert.deepEqual(
+			rebuilt.snapshot.values,
+			ctx.sessionProjections.snapshot(s).values,
+		);
+		const expected = ctx.sessionProjections.stateOf(s, "contextBreakdown");
+		assert(expected);
+		assert.deepEqual(rebuilt.checkpoint.contextBreakdown?.val, expected);
+		const tail = [
+			event(
+				3,
+				"system/message",
+				{
+					message: {
+						role: "system",
+						content: [{ type: "text", text: "new instructions" }],
+					},
+				},
+				{ startSeq: SessionSeq(1), endSeq: SessionSeq(1) },
+			),
+		];
+		const continued = ctx.sessionProjections.restore(
+			rebuilt.checkpoint,
+			tail,
+			SessionLogOffset(3),
+			s.header,
+			SessionLogOffset(0),
+		);
+		const complete = session([...events, ...tail]);
+		assert.deepEqual(
+			continued.snapshot.values,
+			ctx.sessionProjections.snapshot(complete).values,
+		);
+		assert.deepEqual(
+			continued.checkpoint.contextBreakdown?.val,
+			ctx.sessionProjections.stateOf(complete, "contextBreakdown"),
+		);
+	} finally {
+		await ctx.fiber.dispose();
+	}
+});
+
 test("old heuristic checkpoints are invalidated and rebuilt from the log", async () => {
 	const ctx = new Context();
 	await ctx.plugin(Registry).await();
