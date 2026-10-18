@@ -3,3 +3,7 @@ node_modules/
 .cache/
 coverage/
 dist/
+
+# Keep pnpm as the only dependency lockfile.
+package-lock.json
+npm-shrinkwrap.json

@@ -1,15 +1,15 @@
-import { SessionLogOffset, SessionSeq } from "@deepseek-ai/dsh-session";
-import type { EpochHeader, SessionEvent } from "@deepseek-ai/dsh-session";
 import type { Message } from "@deepseek-ai/dsh-llm";
+import type { EpochHeader, SessionEvent } from "@deepseek-ai/dsh-session";
+import { SessionLogOffset, SessionSeq } from "@deepseek-ai/dsh-session";
 import type { ProjectionDefinition } from "@deepseek-ai/dsh-session-projection";
 import type {
-	ContextPressureProjection,
 	ContextBreakdownProjection,
+	ContextPressureProjection,
 } from "@deepseek-ai/dsh-token-meter";
 import { z } from "zod";
-import { initialState, fold, measureState } from "./core.js";
 import type { MeterServices } from "./core.js";
-import type { MeterConfig, ReplayState, ReplayNode } from "./types.js";
+import { fold, initialState, measureState } from "./core.js";
+import type { MeterConfig, ReplayNode, ReplayState } from "./types.js";
 
 const count = z.number().int().nonnegative();
 const nodeSchema = z.object({
@@ -30,7 +30,7 @@ export const replayProjection: ProjectionDefinition<"contextPolicyMeter"> = {
 	apply: fold,
 };
 
-// Retain the native state fields so callers of the original keys remain type-compatible.
+// These native projection keys must satisfy the DSH 0.2.1-rc.2 state contract.
 interface DisplayState extends ReplayState {
 	systems: { seq: SessionSeq; tokens: number }[];
 	nodes: (ReplayNode & { system: boolean; heuristicTokens: number })[];
@@ -44,7 +44,9 @@ const breakdownSchema = z.object({
 	messageTokens: count,
 });
 const displaySchema = replaySchema.extend({
-	systems: z.array(z.object({ seq: count.transform(SessionSeq), tokens: count })),
+	systems: z.array(
+		z.object({ seq: count.transform(SessionSeq), tokens: count }),
+	),
 	nodes: z.array(
 		nodeSchema.extend({ system: z.boolean(), heuristicTokens: count }),
 	),

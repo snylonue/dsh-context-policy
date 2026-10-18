@@ -1,18 +1,18 @@
-import type { EpochHeader, SessionEvent } from "@deepseek-ai/dsh-session";
-import type { TokenMeasurementBaseline } from "@deepseek-ai/dsh-token-meter";
-import { SessionLogOffset } from "@deepseek-ai/dsh-session";
 import type {
-	default as LlmService,
-	Message,
 	LlmImageRequestPrice,
 	LlmImageRequestPricing,
+	default as LlmService,
+	Message,
 	TokenUsage,
 } from "@deepseek-ai/dsh-llm";
+import type { EpochHeader, SessionEvent } from "@deepseek-ai/dsh-session";
+import { SessionLogOffset } from "@deepseek-ai/dsh-session";
+import type { TokenMeasurementBaseline } from "@deepseek-ai/dsh-token-meter";
 import type {
 	MeterConfig,
 	MeterEvent,
-	ReplayState,
 	ReplayNode,
+	ReplayState,
 } from "./types.js";
 export interface MeterServices {
 	llm?: Pick<LlmService, "imageRequestPricing" | "fileRequestText">;
@@ -25,13 +25,14 @@ interface Attachments {
 	unpricedImages: boolean;
 	unpricedFiles: boolean;
 }
+
+import { lastAssistantStreamChunk } from "@deepseek-ai/dsh-llm";
 import {
 	canonicalHeader,
 	deriveEventMessage,
 	headerEquals,
 	isSurfaceEvent,
 } from "@deepseek-ai/dsh-session";
-import { lastAssistantStreamChunk } from "@deepseek-ai/dsh-llm";
 import { deepFreeze } from "@deepseek-ai/dsh-util-values";
 import { countText, resolvePolicy } from "./tokenizers.js";
 
@@ -211,7 +212,7 @@ export function priceSurface(
 			)
 				tokens = body + policy.tokensPerMessage;
 		}
-		// Upstream compaction reads this compatibility field for shadowedTokenCount.
+		// DSH 0.2.1-rc.2 compaction requires this field for shadowedTokenCount.
 		return { seq: node.seq, tokens, heuristicTokens: tokens };
 	});
 	const surfaceTokens = priced.reduce((sum, node) => sum + node.tokens, 0);
