@@ -5,7 +5,9 @@ Percentage-based automatic compaction and model-configurable token accounting fo
 ## Requirements
 
 - Node.js 24 or later.
-- DSH 0.2.1-rc.2 only; older-host support is removed.
+- DSH 0.2.1-rc.2 or 0.2.1-rc.3; older hosts and untested later releases are not declared compatible.
+
+Both host versions pass the build, TypeScript checks, and the full 39-test suite, including plugin composition, token accounting, projection replay/checkpoints, and percentage compaction. Development dependencies are pinned to 0.2.1-rc.3.
 
 ## Installation
 
