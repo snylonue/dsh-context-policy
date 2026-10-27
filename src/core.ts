@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
 	LlmImageRequestPrice,
 	LlmImageRequestPricing,
@@ -11,6 +12,7 @@ import type { TokenMeasurementBaseline } from "@deepseek-ai/dsh-token-meter";
 import type {
 	MeterConfig,
 	MeterEvent,
+	ReplayHeader,
 	ReplayNode,
 	ReplayState,
 } from "./types.js";
@@ -35,6 +37,19 @@ import {
 } from "@deepseek-ai/dsh-session";
 import { deepFreeze } from "@deepseek-ai/dsh-util-values";
 import { countText, resolvePolicy } from "./tokenizers.js";
+
+/** Tool schemas compare in order, identically for raw and summarized headers. */
+export const headerToolsKey = (header: ReplayHeader) =>
+	header.toolsKey ??
+	createHash("sha256")
+		.update(JSON.stringify(header.tools ?? []))
+		.digest("hex");
+function meterHeaderEquals(a: ReplayHeader, b: ReplayHeader) {
+	return a.toolsKey || b.toolsKey
+		? headerEquals({ ...a, tools: undefined }, { ...b, tools: undefined }) &&
+				headerToolsKey(a) === headerToolsKey(b)
+		: headerEquals(a, b);
+}
 
 export const initialState = (): ReplayState => ({
 	nodes: [],
@@ -123,10 +138,18 @@ export function fold(state: ReplayState, event: MeterEvent): ReplayState {
 	return next;
 }
 
-function contentTokens(
+export function contentTokens(
 	blocks: Message["content"],
-	policy: ReturnType<typeof resolvePolicy>,
-	attachments: Attachments,
+	policy: Pick<
+		ReturnType<typeof resolvePolicy>,
+		"tokenizer" | "includeReasoning"
+	>,
+	attachments: Attachments = {
+		imagePrices: [],
+		imageCursor: 0,
+		unpricedImages: false,
+		unpricedFiles: false,
+	},
 ) {
 	const count = (text: string) => countText(text, policy.tokenizer);
 	let tokens = 0;
@@ -170,7 +193,7 @@ function contentTokens(
 
 export function priceSurface(
 	nodes: readonly ReplayNode[],
-	header: EpochHeader | null,
+	header: ReplayHeader | null,
 	config: MeterConfig,
 	services: MeterServices,
 ) {
@@ -203,23 +226,27 @@ export function priceSurface(
 		throw new Error("Invalid route image pricing");
 	const priced = nodes.map((node) => {
 		const message = node.message;
-		let tokens = 0;
-		if (message) {
-			const body = contentTokens(message.content, policy, attachments);
-			if (
-				body > 0 ||
-				message.content.some((b) => b.type === "text" || b.type === "tool-call")
-			)
-				tokens = body + policy.tokensPerMessage;
-		}
+		const counts = node.counts;
+		const body =
+			contentTokens(message?.content ?? [], policy, attachments) +
+			(counts?.text[policy.tokenizer] ?? 0) +
+			(policy.includeReasoning
+				? (counts?.reasoning[policy.tokenizer] ?? 0)
+				: 0);
+		const envelope =
+			counts?.envelope ||
+			message?.content.some((b) => b.type === "text" || b.type === "tool-call");
+		const tokens = body > 0 || envelope ? body + policy.tokensPerMessage : 0;
 		// DSH 0.2.1-rc.2 compaction requires this field for shadowedTokenCount.
 		return { seq: node.seq, tokens, heuristicTokens: tokens };
 	});
 	const surfaceTokens = priced.reduce((sum, node) => sum + node.tokens, 0);
-	const toolsTokens = header?.tools?.length
-		? countText(JSON.stringify(header.tools), policy.tokenizer) +
-			policy.toolsOverhead
-		: 0;
+	const toolsTokens = header?.toolCounts
+		? header.toolCounts[policy.tokenizer] + policy.toolsOverhead
+		: header?.tools?.length
+			? countText(JSON.stringify(header.tools), policy.tokenizer) +
+				policy.toolsOverhead
+			: 0;
 	const primingTokens = header || nodes.length ? policy.replyPrimingTokens : 0;
 	return {
 		nodes: priced,
@@ -242,11 +269,11 @@ export function measureState(
 	services: MeterServices = {},
 	requestHeader?: EpochHeader,
 ) {
-	const header =
+	const header: ReplayHeader | null =
 		requestHeader === undefined ? state.header : canonicalHeader(requestHeader);
 	const current = priceSurface(state.nodes, header, config, services);
 	const anchor = state.anchor;
-	const reusable = anchor && header && headerEquals(anchor.header, header);
+	const reusable = anchor && header && meterHeaderEquals(anchor.header, header);
 	let baseline: TokenMeasurementBaseline;
 	let surfaceDeltaTokens = 0;
 	if (reusable) {

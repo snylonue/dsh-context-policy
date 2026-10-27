@@ -11,6 +11,8 @@ for (const args of [
 		"--test",
 		"tests/current-host.test.ts",
 		"tests/policy.test.ts",
+		"tests/compact.test.ts",
+		"tests/replay.test.ts",
 		"tests/bundle.test.ts",
 		"tests/tokenizers.test.ts",
 	],

@@ -3,17 +3,22 @@ import type { Context } from "@deepseek-ai/cordis";
 import type { EpochHeader, Session } from "@deepseek-ai/dsh-session";
 import { SessionSeq } from "@deepseek-ai/dsh-session";
 import type { Message } from "@deepseek-ai/dsh-llm";
-import type { MeterConfig, MeterConfigInput, ReplayState } from "./types.js";
+import type { MeterConfig, MeterConfigInput } from "./types.js";
+import type { CompactState } from "./compact.js";
+import { measureCompact } from "./compact.js";
 import type { MeterServices } from "./core.js";
 import "@deepseek-ai/dsh-session-projection";
 import settings from "@deepseek-ai/schemastery";
-import { measureState, priceSurface } from "./core.js";
-import { createDisplayProjections, replayProjection } from "./projection.js";
+import { priceSurface } from "./core.js";
+import {
+	createDisplayProjections,
+	createReplayProjection,
+} from "./projection.js";
 import { usageProjection } from "./usage.js";
 
 declare module "@deepseek-ai/dsh-session-projection" {
 	interface SessionProjectionStateMap {
-		contextPolicyMeter: ReplayState;
+		contextPolicyMeter: CompactState;
 	}
 }
 
@@ -60,7 +65,9 @@ export class ModelTokenMeter extends Service {
 		ctx.sessionProjections.register(usageProjection);
 		ctx.sessionProjections.register(display.pressure);
 		ctx.sessionProjections.register(display.breakdown);
-		ctx.sessionProjections.register(replayProjection);
+		ctx.sessionProjections.register(
+			createReplayProjection(this.config),
+		);
 	}
 	config: MeterConfig;
 	services: MeterServices;
@@ -73,7 +80,7 @@ export class ModelTokenMeter extends Service {
 			throw new Error(
 				"ModelTokenMeter contextPolicyMeter projection is unavailable",
 			);
-		return measureState(state, this.config, this.services, requestHeader);
+		return measureCompact(state, this.config, this.services, requestHeader);
 	}
 	estimateMessage(message: Message) {
 		return priceSurface(

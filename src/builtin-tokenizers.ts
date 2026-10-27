@@ -20,5 +20,5 @@ export function createTokenizerCounter(
 		return new Tokenizer(data, {});
 	});
 	return (text) =>
-		tokenizer.value.encode(text, { add_special_tokens: false }).ids.length;
+		tokenizer.value.tokenize(text, { add_special_tokens: false }).length;
 }

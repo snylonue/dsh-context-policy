@@ -13,6 +13,10 @@ const tokenizers = new Map<string, (text: string) => number>([
 	["o200k_base", createTokenizerCounter("o200k-base")],
 ]);
 
+let generation = 0;
+/** Invalidates derived numeric summaries when custom counters are replaced. */
+export const tokenizerGeneration = () => generation;
+
 export function registerTokenizer(
 	name: string,
 	count: (text: string) => number,
@@ -20,10 +24,12 @@ export function registerTokenizer(
 	if (tokenizers.has(name))
 		throw new Error(`Tokenizer already registered: ${name}`);
 	tokenizers.set(name, count);
+	generation++;
 	return () => {
 		if (tokenizers.get(name) === count) {
 			tokenizers.delete(name);
 			caches.delete(count);
+			generation++;
 		}
 	};
 }

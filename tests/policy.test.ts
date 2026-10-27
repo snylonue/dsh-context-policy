@@ -464,14 +464,14 @@ test("actual Cordis registry replays nonempty logs, validates all UI views and u
 			updated.contextBreakdown.messageTokens >
 				values.contextBreakdown.messageTokens,
 		);
-		assert.deepEqual(
-			ctx.sessionProjections.viewCheckpoint(checkpoint),
-			updated,
-		);
+		// Counts and numeric anchors are policy-specific; changed configuration
+		// invalidates all counting checkpoints rather than reusing stale prices.
+		assert.equal(ctx.sessionProjections.viewCheckpoint(checkpoint).contextPressure, undefined);
+		assert.equal(ctx.sessionProjections.restoreFloor(checkpoint), 0);
 		const restored = ctx.sessionProjections.restore(
 			checkpoint,
-			events.slice(-1),
-			SessionLogOffset(events.length - 1),
+			events,
+			SessionLogOffset(0),
 			s.header,
 			SessionLogOffset(0),
 		);

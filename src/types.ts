@@ -51,15 +51,24 @@ export interface ResolvedPolicy {
 	replyPrimingTokens: number;
 	includeReasoning: boolean;
 }
+export interface ReplayHeader extends EpochHeader {
+	toolsKey?: string;
+	toolCounts?: Record<string, number> | null;
+}
 export interface ReplayNode {
 	seq: SessionSeq;
-	message: Message | null;
+	message: Pick<Message, "content"> | null;
+	counts?: {
+		text: Record<string, number>;
+		reasoning: Record<string, number>;
+		envelope: boolean;
+	};
 }
 export interface ReplayState {
 	nodes: readonly ReplayNode[];
-	header: EpochHeader | null;
+	header: ReplayHeader | null;
 	anchor: {
-		header: EpochHeader;
+		header: ReplayHeader;
 		nodes: readonly ReplayNode[];
 		usage: TokenUsage;
 	} | null;

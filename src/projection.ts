@@ -1,6 +1,5 @@
-import type { Message } from "@deepseek-ai/dsh-llm";
-import type { EpochHeader, SessionEvent } from "@deepseek-ai/dsh-session";
-import { SessionLogOffset, SessionSeq } from "@deepseek-ai/dsh-session";
+import type { SessionEvent } from "@deepseek-ai/dsh-session";
+import { SessionSeq } from "@deepseek-ai/dsh-session";
 import type { ProjectionDefinition } from "@deepseek-ai/dsh-session-projection";
 import type {
 	ContextBreakdownProjection,
@@ -8,32 +7,36 @@ import type {
 } from "@deepseek-ai/dsh-token-meter";
 import { z } from "zod";
 import type { MeterServices } from "./core.js";
-import { fold, initialState, measureState } from "./core.js";
-import type { MeterConfig, ReplayNode, ReplayState } from "./types.js";
+import {
+	compactSchema,
+	compactVersion,
+	foldCompact,
+	initialCompactState,
+	measureCompact,
+} from "./compact.js";
+import type { CompactState } from "./compact.js";
+import type { MeterConfig } from "./types.js";
 
 const count = z.number().int().nonnegative();
-const nodeSchema = z.object({
-	seq: count.transform(SessionSeq),
-	message: z.custom<Message>().nullable(),
+export function createReplayProjection(config: MeterConfig) {
+	return {
+		key: "contextPolicyMeter",
+		stateVersion: compactVersion(config),
+		stateSchema: compactSchema,
+		init: initialCompactState,
+		apply: (state: CompactState, event: SessionEvent) =>
+			foldCompact(state, event, config),
+	} satisfies ProjectionDefinition<"contextPolicyMeter">;
+}
+export const replayProjection = createReplayProjection({
+	defaultTokenizer: "deepseek_v4",
+	modelPolicies: [],
 });
-const replaySchema = z.object({
-	nodes: z.array(nodeSchema),
-	header: z.custom<EpochHeader>().nullable(),
-	anchor: z.custom<NonNullable<ReplayState["anchor"]>>().nullable(),
-	logRevision: count.transform(SessionLogOffset),
-});
-export const replayProjection: ProjectionDefinition<"contextPolicyMeter"> = {
-	key: "contextPolicyMeter",
-	stateVersion: 2,
-	stateSchema: replaySchema,
-	init: initialState,
-	apply: fold,
-};
 
-// These native projection keys must satisfy the DSH 0.2.1-rc.2 state contract.
-interface DisplayState extends ReplayState {
+// Keep the native state contract without retaining message bodies or tool schemas.
+interface DisplayState extends CompactState {
 	systems: { seq: SessionSeq; tokens: number }[];
-	nodes: (ReplayNode & { system: boolean; heuristicTokens: number })[];
+	nodes: (CompactState["nodes"][number] & { heuristicTokens: number })[];
 	surfaceTokens: number;
 	breakdown: ContextBreakdownProjection;
 	contextWindow?: number;
@@ -43,12 +46,12 @@ const breakdownSchema = z.object({
 	toolsTokens: count,
 	messageTokens: count,
 });
-const displaySchema = replaySchema.extend({
+const displaySchema = compactSchema.extend({
 	systems: z.array(
 		z.object({ seq: count.transform(SessionSeq), tokens: count }),
 	),
 	nodes: z.array(
-		nodeSchema.extend({ system: z.boolean(), heuristicTokens: count }),
+		compactSchema.shape.nodes.element.extend({ heuristicTokens: count }),
 	),
 	surfaceTokens: count,
 	breakdown: breakdownSchema,
@@ -56,7 +59,7 @@ const displaySchema = replaySchema.extend({
 });
 function initialDisplayState(): DisplayState {
 	return {
-		...initialState(),
+		...initialCompactState(),
 		systems: [],
 		nodes: [],
 		surfaceTokens: 0,
@@ -69,13 +72,11 @@ function foldDisplay(
 	config: MeterConfig,
 	services: MeterServices,
 ): DisplayState {
-	const next = fold(state, event);
-	const { contextWindow, ...withoutWindow } = {
-		...next,
-		contextWindow: state.contextWindow,
-	};
+	const next = foldCompact(state, event, config);
 	const window =
-		event.type === "request/context" ? event.data.contextWindow : contextWindow;
+		event.type === "request/context"
+			? event.data.contextWindow
+			: state.contextWindow;
 	if (
 		next.nodes === state.nodes &&
 		next.header === state.header &&
@@ -83,31 +84,26 @@ function foldDisplay(
 		window === state.contextWindow
 	)
 		return state;
-	const measurement = measureState(next, config, services);
-	// Empty system events have no derived Message but still occupy a surface position.
-	const systemSeqs = new Set(state.systems.map((node) => node.seq));
+	const measurement = measureCompact(next, config, services);
 	const nodes = next.nodes.map((node, index) => ({
 		...node,
-		system:
-			systemSeqs.has(node.seq) ||
-			(event.type === "system/message" && node.seq === event.seq),
-		// Native consumers use this field; it carries the model count, not a second estimator.
 		heuristicTokens: measurement.nodes[index].tokens,
 	}));
-	const surfaceTokens = measurement.surfaceTokens;
 	const systems = nodes.flatMap((node) =>
 		node.system ? [{ seq: node.seq, tokens: node.heuristicTokens }] : [],
 	);
 	const systemTokens = systems.findLast((node) => node.tokens > 0)?.tokens ?? 0;
+	const { contextWindow: _previousWindow, ...withoutWindow } =
+		next as CompactState & { contextWindow?: number };
 	return {
 		...withoutWindow,
 		systems,
 		nodes,
-		surfaceTokens,
+		surfaceTokens: measurement.surfaceTokens,
 		breakdown: {
 			systemTokens,
 			toolsTokens: measurement.toolsTokens,
-			messageTokens: surfaceTokens - systemTokens,
+			messageTokens: measurement.surfaceTokens - systemTokens,
 		},
 		...(window === undefined ? {} : { contextWindow: window }),
 	};
@@ -127,7 +123,7 @@ export function createDisplayProjections(
 	const view = (state: DisplayState) => {
 		const cached = views.get(state);
 		if (cached) return cached;
-		const measurement = measureState(state, config, services);
+		const measurement = measureCompact(state, config, services);
 		const systemTokens =
 			measurement.nodes.findLast(
 				(node, index) => state.nodes[index].system && node.tokens > 0,
@@ -151,7 +147,7 @@ export function createDisplayProjections(
 		return value;
 	};
 	const replay = {
-		stateVersion: 9,
+		stateVersion: compactVersion(config),
 		stateSchema: displaySchema,
 		init: initialDisplayState,
 		apply: (state: DisplayState, event: SessionEvent) =>
